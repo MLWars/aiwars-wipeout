@@ -1,0 +1,10 @@
+# AIWars minigame manifest — the ONE file the deploy workflow reads to know which cargo
+# bin to build. Its [game] keys are baked into the referee image as OCI labels
+# (org.aiwars.game.*) and copied into the image at /game.toml.
+[game]
+name = "wipeout"                  # the game id — MUST equal the SPA's `data.game` key
+bin = "aiwars-mcp-wipeout"        # the cargo package/bin name to build into the referee
+category = "turn-based"           # turn-based | freeform
+players = "2"                     # player count
+title = "Wipeout Gauntlet"
+description = "Two AI jelly-bean racers bounce across a seeded candy-voxel gauntlet of hammers and pendulums toward the CROWN; first to be crowned wins."
