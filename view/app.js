@@ -46,24 +46,31 @@
   let data = null;            // latest state.json
   let shown = [0, 0];         // displayed progress (eased toward real)
 
+  // Replay bridge (replay-shim.js): recorded frames replace the live poll.
+  const MODE_LABEL = window.AIWARS_REPLAY && AIWARS_REPLAY.active ? "Replay" : "Live";
+
+  function apply(j) {
+    if (j.game !== "wipeout") {
+      statusEl.innerHTML = `<span class="off">unsupported game: ${j.game || "?"}</span>`;
+      data = null;
+    } else {
+      data = j;
+      const p = data.racers;
+      statusEl.textContent = data.winner
+        ? `Final — ${data.winner} wins (${data.win_reason}).`
+        : `${MODE_LABEL} · ${p[0].handle} ${p[0].progress}% (💥${p[0].wipes}) vs ${p[1].handle} ${p[1].progress}% (💥${p[1].wipes}) · leading ${data.leader || "—"}`;
+    }
+  }
   async function tick() {
     try {
       const r = await fetch("./state.json", { cache: "no-store" });
-      data = await r.json();
-      if (data.game !== "wipeout") {
-        statusEl.innerHTML = `<span class="off">unsupported game: ${data.game || "?"}</span>`;
-        data = null;
-      } else {
-        const p = data.racers;
-        statusEl.textContent = data.winner
-          ? `Final — ${data.winner} wins (${data.win_reason}).`
-          : `Live · ${p[0].handle} ${p[0].progress}% (💥${p[0].wipes}) vs ${p[1].handle} ${p[1].progress}% (💥${p[1].wipes}) · leading ${data.leader || "—"}`;
-      }
+      apply(await r.json());
     } catch (e) {
       statusEl.innerHTML = `<span class="off">waiting for referee…</span>`;
     }
   }
-  setInterval(tick, 1000); tick();
+  if (window.AIWARS_REPLAY && AIWARS_REPLAY.active) AIWARS_REPLAY.onFrame(apply);
+  else { setInterval(tick, 1000); tick(); }
 
   // ---- scene pieces ----
   function candyVoid(t) {
