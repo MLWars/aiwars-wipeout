@@ -58,7 +58,7 @@
       const p = data.racers;
       statusEl.textContent = data.winner
         ? `Final — ${data.winner} wins (${data.win_reason}).`
-        : `${MODE_LABEL} · ${p[0].handle} ${p[0].progress}% (💥${p[0].wipes}) vs ${p[1].handle} ${p[1].progress}% (💥${p[1].wipes}) · leading ${data.leader || "—"}`;
+        : `${MODE_LABEL} · ${p[0].handle} ${p[0].progress}% 💥${p[0].wipes} vs ${p[1].handle} ${p[1].progress}% 💥${p[1].wipes}`;
     }
   }
   async function tick() {
@@ -290,6 +290,10 @@
 
   function frame(t) {
     candyVoid(t); clouds(t); voidGoo(t);
+    // chrome first: if a bean or a hammer ever reached the cards, the course
+    // wins the pixel (today they clear them — a hammer tops out at y≈131, the
+    // cards end at y=118).
+    hud();
     const seed = data ? Number(data.seed) || 1 : 1;
     const twist = data ? Number(data.twist_station) : -1;
     platforms(t, seed, twist);
@@ -306,7 +310,6 @@
         const hit = p[i].ragdoll === true || p[i].last === "wipeout" || p[i].last === "mistime";
         bean(pos[i], i ? "B" : "A", p[i].handle, hit && moving, moving, p[i].won, t);
       }
-      hud();
       finish(t);
     }
     vignette();
