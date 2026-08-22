@@ -611,26 +611,61 @@ mod tests {
     }
 
     /// Drive a whole gauntlet the way a client does: read `to_move_idx`/`ply`, play the first
-    /// legal move. It must resolve within the round cap with a concrete result.
+    /// legal move. Every call must be ACCEPTED — a rejected move here would mean the seat/ply
+    /// the public projection advertises does not match what the match will take, and
+    /// swallowing it would let a game whose moves ALL fail still look "deterministic".
     fn play_out(m: &mut TurnBasedMatch) {
         let mut guard = 0;
         while !m.is_resolved() && guard < 64 {
             let seat = m.state_json()["to_move_idx"].as_u64().unwrap() as usize;
             let ply = m.state_json()["ply"].as_u64().unwrap() as u32;
             let mv = m.turn_info(seat)["moves"][0].as_str().unwrap().to_string();
-            let _ = m.make_move(seat, &mv, ply);
+            m.make_move(seat, &mv, ply)
+                .unwrap_or_else(|e| panic!("seat {seat} playing {mv} at ply {ply}: {e}"));
             guard += 1;
         }
     }
 
+    /// Seed 7 is fixed, so the whole gauntlet is fixed: assert the EXACT result, not merely
+    /// that one exists. (`outcome` can only ever be "Winner" or "Draw", so asserting that
+    /// disjunction proves nothing — it holds with the crown rule deleted.)
     #[test]
-    fn rushing_eventually_crowns_or_resolves_with_a_winner() {
+    fn rushing_all_the_way_crowns_the_racer_who_gets_there_first() {
         let mut m = started(7);
         play_out(&mut m);
         assert!(m.is_resolved(), "match must resolve within the round cap");
         let result = m.result().expect("resolved match has a result");
-        assert!(result.outcome == "Winner" || result.outcome == "Draw");
-        assert!(m.state_json()["moves"].as_array().unwrap().is_empty());
+        assert_eq!(result.outcome, "Winner");
+        assert_eq!(result.winner.as_deref(), Some("beanzo"));
+        let st = m.state_json();
+        assert_eq!(st["win_reason"], "crown", "the crown ends it, not the cap");
+        assert_eq!(st["racers"][0]["won"], true);
+        assert!(st["moves"].as_array().unwrap().is_empty());
+    }
+
+    /// The round cap's OWN rule, which the crown path above never reaches: with nobody
+    /// crowned, the racer nearer the crown wins.
+    #[test]
+    fn at_the_round_cap_the_racer_nearer_the_crown_wins() {
+        let mut g = Wipeout::new(&racers(), &json!({ "seed": 7 })).unwrap();
+        g.racers[0].prog = 40;
+        g.racers[0].turns = ROUND_CAP;
+        g.racers[1].prog = 30;
+        g.racers[1].turns = ROUND_CAP;
+        g.try_resolve();
+        assert_eq!(g.win_reason, "closer");
+        assert_eq!(g.outcome(), Some(Outcome::Win(AgentId("beanzo".into()))));
+
+        // Dead level at the cap is a draw — the same tie rule `timeout_leader` reports.
+        let mut g = Wipeout::new(&racers(), &json!({ "seed": 7 })).unwrap();
+        g.racers[0].prog = 30;
+        g.racers[0].turns = ROUND_CAP;
+        g.racers[1].prog = 30;
+        g.racers[1].turns = ROUND_CAP;
+        g.try_resolve();
+        assert_eq!(g.win_reason, "draw");
+        assert_eq!(g.outcome(), Some(Outcome::Draw));
+        assert_eq!(g.timeout_leader(), None);
     }
 
     #[test]
@@ -680,7 +715,8 @@ mod tests {
             while !m.is_resolved() && guard < 64 {
                 let ply = m.state_json()["ply"].as_u64().unwrap() as u32;
                 let seat = m.state_json()["to_move_idx"].as_u64().unwrap() as usize;
-                let _ = m.make_move(seat, "rush:ahead", ply);
+                m.make_move(seat, "rush:ahead", ply)
+                    .unwrap_or_else(|e| panic!("seat {seat} rushing at ply {ply}: {e}"));
                 guard += 1;
             }
             m.state_json()
@@ -699,5 +735,13 @@ mod tests {
         assert_eq!(s["turn"]["moves"].as_array().unwrap().len(), 3);
         assert_eq!(s["state"]["to_move"], "beanzo");
         assert_eq!(m.seat_state(1)["turn"]["your_turn"], false);
+    }
+
+    /// The shipped game.toml must parse and its hold must validate — green CI implies a
+    /// bootable manifest (a typo in `[settings]` would otherwise crashloop every pod).
+    #[test]
+    fn game_toml_is_loadable() {
+        let settings = aiwars_minigame::settings::manifest_settings_at("game.toml").unwrap();
+        aiwars_minigame::settings::validate_hold(&settings).unwrap();
     }
 }
