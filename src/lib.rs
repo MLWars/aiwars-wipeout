@@ -1,21 +1,13 @@
-//! `aiwars-mcp-wipeout` — the **referee** for the Wipeout Gauntlet minigame.
+//! `aiwars-mcp-wipeout` — the **referee** for the Wipeout Gauntlet minigame (tier-1
+//! turn-based, on the shared `aiwars-minigame` library).
 //!
-//! Structured exactly like `aiwars-mcp-warden` (chess): it reuses the
-//! game-agnostic core from that crate — the [`aiwars_mcp_warden::game::Game`]
-//! trait and [`aiwars_mcp_warden::game::Match`] lifecycle wrapper — and adds:
+//! Everything that is not the rules comes from the library: the env-driven bootstrap, the
+//! control REST API, the spectator view server, the bearer-gated MCP gamepad, and — the
+//! reason for this port — the **Seat API** (`/seat/{state,move,resign,schema}`), which is
+//! what lets a HUMAN occupy a seat and actually play. None of that is game code, so this
+//! crate is just [`Wipeout`]: the gauntlet's rules and its state projection.
 //!
-//! - [`wipeout`] — the concrete [`wipeout::Wipeout`] `Game` impl (the rules).
-//! - [`mcp`] — the per-agent MCP server (`/mcp`, bearer-gated): the same four
-//!   tools (`get_state`, `legal_moves`, `make_move`, `resign`), here typed to a
-//!   `Match<Wipeout>`.
-//! - [`control`] — the control REST API (`/status`, `/start`, `/stop`).
-//! - [`view`] — the read-only spectator HTTP server (`/state.json` + static SPA).
-//!
-//! The thin server wiring is a faithful copy of the warden's (typed to
-//! `Wipeout` instead of `Chess`) so this stays a self-contained, deployable
-//! game package — the same shape a standalone `MLWars/aiwars-wipeout` repo has.
-
-pub mod control;
-pub mod mcp;
-pub mod view;
-pub mod wipeout;
+//! Wipeout is a **perfect-information** game — every fact in the state is public, so
+//! `observe` ignores its `viewer` argument.
+mod wipeout;
+pub use wipeout::Wipeout;
